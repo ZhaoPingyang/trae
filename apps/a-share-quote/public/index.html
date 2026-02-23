@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>A股实时报价</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; margin: 24px; background: #0b1220; color: #e5e7eb; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    input { padding: 8px 10px; font-size: 14px; width: 180px; }
+    button { padding: 8px 12px; font-size: 14px; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-top: 12px; }
+    .card { border: 1px solid #22314d; background: #0f172a; border-radius: 10px; padding: 16px; }
+    .label { color: #94a3b8; width: 90px; display: inline-block; }
+    .value { font-weight: 600; }
+    .price { font-size: 28px; }
+    .muted { color: #94a3b8; font-size: 12px; }
+    .pos { color: #22c55e; }
+    .neg { color: #ef4444; }
+    .section { margin-top: 24px; }
+  </style>
+  <script>
+    async function fetchQuote() {
+      const input = document.getElementById('code');
+      const code = input.value.trim() || 'sh000001';
+      const out = document.getElementById('out');
+      out.textContent = '加载中…';
+      try {
+        const r = await fetch(`/api/quote?code=${encodeURIComponent(code)}`);
+        const data = await r.json();
+        if (!r.ok) {
+          out.textContent = '请求失败：' + (data.error || r.status);
+          return;
+        }
+        render(data);
+      } catch (e) {
+        out.textContent = '网络错误：' + e.message;
+      }
+    }
+    async function fetchMarket() {
+      const box = document.getElementById('market');
+      box.textContent = '加载中…';
+      try {
+        const r = await fetch('/api/market');
+        const data = await r.json();
+        if (!r.ok) {
+          box.textContent = '请求失败：' + (data.error || r.status);
+          return;
+        }
+        renderMarket(data.items || []);
+      } catch (e) {
+        box.textContent = '网络错误：' + e.message;
+      }
+    }
+    function render(d) {
+      const out = document.getElementById('out');
+      out.innerHTML = `
+        <div class="card">
+          <div class="muted">${d.code} ${d.name || ''}</div>
+          <div class="price">${fmt(d.price)}</div>
+          <div><span class="label">今开</span><span class="value">${fmt(d.open)}</span></div>
+          <div><span class="label">昨收</span><span class="value">${fmt(d.prev_close)}</span></div>
+          <div><span class="label">最高</span><span class="value">${fmt(d.high)}</span></div>
+          <div><span class="label">最低</span><span class="value">${fmt(d.low)}</span></div>
+          <div><span class="label">成交量</span><span class="value">${fmt(d.volume)}</span></div>
+          <div><span class="label">成交额</span><span class="value">${fmt(d.amount)}</span></div>
+          <div class="muted">时间：${d.time || '-'}</div>
+        </div>`;
+    }
+    function renderMarket(items) {
+      const box = document.getElementById('market');
+      if (!items.length) { box.textContent = '无数据'; return; }
+      const html = items.map(i => {
+        const pc = num(i.prev_close);
+        const p = num(i.price);
+        const chg = num(i.change);
+        const pct = num(i.change_pct);
+        const cls = pct > 0 ? 'pos' : (pct < 0 ? 'neg' : '');
+        return `
+        <div class="card">
+          <div class="muted">${i.code} ${i.name || ''}</div>
+          <div class="price ${cls}">${fmt(p)}</div>
+          <div><span class="label">涨跌</span><span class="value ${cls}">${fmt(chg)} (${pct ? pct.toFixed(2) : '-'}%)</span></div>
+          <div><span class="label">今开</span><span class="value">${fmt(i.open)}</span></div>
+          <div><span class="label">昨收</span><span class="value">${fmt(pc)}</span></div>
+          <div><span class="label">最高</span><span class="value">${fmt(i.high)}</span></div>
+          <div><span class="label">最低</span><span class="value">${fmt(i.low)}</span></div>
+          <div><span class="label">成交额</span><span class="value">${fmt(i.amount)}</span></div>
+        </div>`;
+      }).join('');
+      box.innerHTML = `<div class="grid">${html}</div>`;
+    }
+    function fmt(v) {
+      if (v === undefined || v === null) return '-';
+      if (typeof v === 'number') return v.toLocaleString('zh-CN');
+      const n = Number(v);
+      return isNaN(n) ? v : n.toLocaleString('zh-CN');
+    }
+    function num(v){ const n = Number(v); return isNaN(n) ? null : n; }
+    window.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('fetch').addEventListener('click', fetchQuote);
+      document.getElementById('refresh-market').addEventListener('click', fetchMarket);
+      fetchQuote();
+      fetchMarket();
+      setInterval(fetchMarket, 15000);
+    });
+  </script>
+  </head>
+<body>
+  <h1>A股实时报价</h1>
+  <div class="row">
+    <input id="code" placeholder="如 600519 / sz000001 / sh000001" />
+    <button id="fetch">获取</button>
+  </div>
+  <div id="out">等待查询…</div>
+  <div class="section">
+    <div class="row">
+      <h2 style="margin:0;">大盘概览</h2>
+      <button id="refresh-market">刷新</button>
+    </div>
+    <div id="market"></div>
+  </div>
+</body>
+</html>
