@@ -26,7 +26,7 @@
       const out = document.getElementById('out');
       out.textContent = '加载中…';
       try {
-        const r = await fetch(`/api/quote?code=${encodeURIComponent(code)}`);
+        const r = await fetch(window.location.origin + `/api/quote?code=${encodeURIComponent(code)}`);
         const data = await r.json();
         if (!r.ok) {
           out.textContent = '请求失败：' + (data.error || r.status);
@@ -41,7 +41,7 @@
       const box = document.getElementById('market');
       box.textContent = '加载中…';
       try {
-        const r = await fetch('/api/market');
+        const r = await fetch(window.location.origin + '/api/market');
         const data = await r.json();
         if (!r.ok) {
           box.textContent = '请求失败：' + (data.error || r.status);
@@ -52,18 +52,73 @@
         box.textContent = '网络错误：' + e.message;
       }
     }
+    
+    async function fetchMarketStatus() {
+      const box = document.getElementById('market-status');
+      box.textContent = '加载中…';
+      try {
+        const r = await fetch(window.location.origin + '/api/market/status');
+        const data = await r.json();
+        if (!r.ok) {
+          box.textContent = '请求失败：' + (data.error || r.status);
+          return;
+        }
+        renderMarketStatus(data);
+      } catch (e) {
+        box.textContent = '网络错误：' + e.message;
+      }
+    }
+    
+    async function fetchSectors() {
+      const box = document.getElementById('sectors');
+      box.textContent = '加载中…';
+      try {
+        const r = await fetch(window.location.origin + '/api/sectors');
+        const data = await r.json();
+        if (!r.ok) {
+          box.textContent = '请求失败：' + (data.error || r.status);
+          return;
+        }
+        renderSectors(data.items || []);
+      } catch (e) {
+        box.textContent = '网络错误：' + e.message;
+      }
+    }
+    
+    async function fetchFunds() {
+      const box = document.getElementById('funds');
+      box.textContent = '加载中…';
+      try {
+        const r = await fetch(window.location.origin + '/api/funds');
+        const data = await r.json();
+        if (!r.ok) {
+          box.textContent = '请求失败：' + (data.error || r.status);
+          return;
+        }
+        renderFunds(data);
+      } catch (e) {
+        box.textContent = '网络错误：' + e.message;
+      }
+    }
     function render(d) {
       const out = document.getElementById('out');
+      const pct = num(d.change_pct);
+      const cls = pct > 0 ? 'pos' : (pct < 0 ? 'neg' : '');
       out.innerHTML = `
         <div class="card">
           <div class="muted">${d.code} ${d.name || ''}</div>
-          <div class="price">${fmt(d.price)}</div>
+          <div class="price ${cls}">${fmt(d.price)}</div>
+          <div><span class="label">涨跌</span><span class="value ${cls}">${fmt(d.change)} (${fmt(d.change_pct)}%)</span></div>
           <div><span class="label">今开</span><span class="value">${fmt(d.open)}</span></div>
           <div><span class="label">昨收</span><span class="value">${fmt(d.prev_close)}</span></div>
           <div><span class="label">最高</span><span class="value">${fmt(d.high)}</span></div>
           <div><span class="label">最低</span><span class="value">${fmt(d.low)}</span></div>
           <div><span class="label">成交量</span><span class="value">${fmt(d.volume)}</span></div>
           <div><span class="label">成交额</span><span class="value">${fmt(d.amount)}</span></div>
+          <div><span class="label">总市值</span><span class="value">${fmt(d.market_cap)}</span></div>
+          <div><span class="label">市盈率</span><span class="value">${fmt(d.pe_ttm)}</span></div>
+          <div><span class="label">市净率</span><span class="value">${fmt(d.pb)}</span></div>
+          <div><span class="label">换手率</span><span class="value">${fmt(d.turnover_rate)}%</span></div>
           <div class="muted">时间：${d.time || '-'}</div>
         </div>`;
     }
@@ -97,12 +152,91 @@
       return isNaN(n) ? v : n.toLocaleString('zh-CN');
     }
     function num(v){ const n = Number(v); return isNaN(n) ? null : n; }
+    
+    function renderMarketStatus(data) {
+      const box = document.getElementById('market-status');
+      box.innerHTML = `
+        <div class="grid">
+          <div class="card">
+            <div class="label">上涨家数</div>
+            <div class="price pos">${fmt(data.up)}</div>
+            <div class="label">下跌家数</div>
+            <div class="price neg">${fmt(data.down)}</div>
+          </div>
+          <div class="card">
+            <div class="label">平盘家数</div>
+            <div class="price">${fmt(data.flat)}</div>
+            <div class="label">总家数</div>
+            <div class="price">${fmt(data.total)}</div>
+          </div>
+          <div class="card">
+            <div class="label">涨停家数</div>
+            <div class="price pos">${fmt(data.up_limit)}</div>
+            <div class="label">跌停家数</div>
+            <div class="price neg">${fmt(data.down_limit)}</div>
+          </div>
+        </div>`;
+    }
+    
+    function renderSectors(items) {
+      const box = document.getElementById('sectors');
+      if (!items.length) { box.textContent = '无数据'; return; }
+      // 只显示前10个行业
+      const topItems = items.slice(0, 10);
+      const html = topItems.map(i => {
+        const pct = num(i.change_pct);
+        const cls = pct > 0 ? 'pos' : (pct < 0 ? 'neg' : '');
+        return `
+        <div class="card">
+          <div class="muted">${i.code} ${i.name || ''}</div>
+          <div class="price ${cls}">${fmt(i.change_pct)}%</div>
+          <div><span class="label">涨跌</span><span class="value ${cls}">${fmt(i.change)}</span></div>
+          <div><span class="label">成交量</span><span class="value">${fmt(i.volume)}</span></div>
+          <div><span class="label">成交额</span><span class="value">${fmt(i.amount)}</span></div>
+          <div><span class="label">换手率</span><span class="value">${fmt(i.turnover_rate)}%</span></div>
+        </div>`;
+      }).join('');
+      box.innerHTML = `<div class="grid">${html}</div>`;
+    }
+    
+    function renderFunds(data) {
+      const box = document.getElementById('funds');
+      const html = Object.values(data).map(mkt => {
+        const mainNet = num(mkt.main_net);
+        const retailNet = num(mkt.retail_net);
+        const totalNet = num(mkt.total_net);
+        const mainCls = mainNet > 0 ? 'pos' : (mainNet < 0 ? 'neg' : '');
+        const retailCls = retailNet > 0 ? 'pos' : (retailNet < 0 ? 'neg' : '');
+        const totalCls = totalNet > 0 ? 'pos' : (totalNet < 0 ? 'neg' : '');
+        return `
+        <div class="card">
+          <div class="muted">${mkt.name}资金流向</div>
+          <div><span class="label">主力净流入</span><span class="value ${mainCls}">${fmt(mkt.main_net)}</span></div>
+          <div><span class="label">主力流入</span><span class="value">${fmt(mkt.main_inflow)}</span></div>
+          <div><span class="label">主力流出</span><span class="value">${fmt(mkt.main_outflow)}</span></div>
+          <div><span class="label">散户净流入</span><span class="value ${retailCls}">${fmt(mkt.retail_net)}</span></div>
+          <div><span class="label">散户流入</span><span class="value">${fmt(mkt.retail_inflow)}</span></div>
+          <div><span class="label">散户流出</span><span class="value">${fmt(mkt.retail_outflow)}</span></div>
+          <div><span class="label">总净流入</span><span class="value ${totalCls}">${fmt(mkt.total_net)}</span></div>
+        </div>`;
+      }).join('');
+      box.innerHTML = `<div class="grid">${html}</div>`;
+    }
     window.addEventListener('DOMContentLoaded', () => {
       document.getElementById('fetch').addEventListener('click', fetchQuote);
       document.getElementById('refresh-market').addEventListener('click', fetchMarket);
+      document.getElementById('refresh-market-status').addEventListener('click', fetchMarketStatus);
+      document.getElementById('refresh-sectors').addEventListener('click', fetchSectors);
+      document.getElementById('refresh-funds').addEventListener('click', fetchFunds);
       fetchQuote();
       fetchMarket();
+      fetchMarketStatus();
+      fetchSectors();
+      fetchFunds();
       setInterval(fetchMarket, 15000);
+      setInterval(fetchMarketStatus, 15000);
+      setInterval(fetchSectors, 30000);
+      setInterval(fetchFunds, 30000);
     });
   </script>
   </head>
@@ -119,6 +253,27 @@
       <button id="refresh-market">刷新</button>
     </div>
     <div id="market"></div>
+  </div>
+  <div class="section">
+    <div class="row">
+      <h2 style="margin:0;">市场涨跌分布</h2>
+      <button id="refresh-market-status">刷新</button>
+    </div>
+    <div id="market-status"></div>
+  </div>
+  <div class="section">
+    <div class="row">
+      <h2 style="margin:0;">行业板块表现</h2>
+      <button id="refresh-sectors">刷新</button>
+    </div>
+    <div id="sectors"></div>
+  </div>
+  <div class="section">
+    <div class="row">
+      <h2 style="margin:0;">资金流向</h2>
+      <button id="refresh-funds">刷新</button>
+    </div>
+    <div id="funds"></div>
   </div>
 </body>
 </html>
